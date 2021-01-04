@@ -1,0 +1,28 @@
+---
+- name: personal apt installer
+  hosts: 127.0.0.1
+  become: true
+  tasks:   
+  
+    - name: flameshot 
+      apt:
+        name: flameshot 
+        update_cache: yes
+        
+    - name: vokoscreen 
+      apt:
+        name: vokoscreen 
+        update_cache: yes
+        
+    - name: Download Chrome and install
+      apt:
+        deb: https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+        
+    - name: Download VSCode and install
+      apt:
+        deb: https://go.microsoft.com/fwlink/?LinkID=760868
+        
+    - name: Download BCompare and install
+      apt:
+        deb: https://www.scootersoftware.com/bcompare-4.3.7.25118_amd64.deb
+    

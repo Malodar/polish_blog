@@ -1,0 +1,144 @@
+---
+- name: file copy, move, downloading, etc.
+  hosts: 127.0.0.1
+  become: true
+  vars:
+    project_name: web_app_v2
+    project_path:  "{{ ansible_facts.env['PWD'] }}/.."
+    arch: amd64
+    grafana_version: 7.3.4
+    grafana_filename: "grafana-{{ grafana_version }}.linux-{{ arch }}.tar.gz"
+  tasks:   
+    
+    - name: Copy .sql files for tables creation
+      copy:
+        src: "{{ item }}"
+        dest: /tmp/tables/
+        mode: '7777'
+      with_fileglob:
+        - "{{project_path}}/SQL/tables/*.sql"
+
+    - name: Copy .sql files for views creation
+      copy:
+        src: "{{ item }}"
+        dest: /tmp/views/
+        mode: '7777'
+      with_fileglob:
+        - "{{project_path}}/SQL/views/*.sql"
+
+    - name: Copy Postgrest binary
+      copy:
+        src: "{{project_path}}/bin/postgrest"
+        dest: /bin/
+        mode: '7777'
+    
+    - name: Copy Postgrest config
+      copy:
+        src: "{{project_path}}/config_files/config"
+        dest: /etc/postgrest/
+        mode: '0644'
+    
+    - name: Copy Postgrest service file
+      copy:
+        src: "{{project_path}}/config_files/postgrest.service"
+        dest: /etc/systemd/system/
+        mode: '0644'
+    
+    - name: Create Grafana directory if it does not exist
+      file:
+        path: "/tmp/grafana-{{ grafana_version }}.linux-{{ arch }}"
+        state: directory
+        mode: '7777'
+
+    - name: Download and unarchive grafana tar gz file
+      unarchive:
+        src: "https://dl.grafana.com/oss/release/{{ grafana_filename }}"
+        dest: "/tmp/"
+        remote_src: yes
+
+    - name: Copy Grafana config
+      copy:
+        src: "{{project_path}}/config_files/grafana.ini"
+        dest: "/tmp/grafana-{{ grafana_version }}/conf/"
+        mode: '7777'
+
+    - name: Copy Grafana run script
+      copy:
+        src: "{{project_path}}/config_files/run_grafana.sh"
+        dest: /bin/
+        mode: '0755'
+
+    - name: update grafana dir path in run_grafana.sh
+      replace:
+        path: "/bin/run_grafana.sh"
+        regexp: '/grafana/'
+        replace: '/grafana-{{grafana_version}}/'
+    
+    - name: Copy Grafana service file
+      copy:
+        src: "{{project_path}}/config_files/grafana.service"
+        dest: /etc/systemd/system/
+        mode: '0644'
+
+    - name: Copy nginx config file
+      copy:
+        src: "{{project_path}}/config_files/default"
+        dest: "/etc/nginx/sites-enabled/"
+        mode: '0744'
+
+    - name: update project build dir path in nginx config
+      replace:
+        path: /etc/nginx/sites-enabled/default
+        regexp: '/var/www/web_app_v2'
+        replace: '{{project_path}}/frontend/dist/fuse'
+    
+    - name: Copy Django run script
+      copy:
+        src: "{{project_path}}/config_files/run_django.sh"
+        dest: /bin/
+        mode: '0777'
+    
+    - name: Copy Django service file
+      copy:
+        src: "{{project_path}}/config_files/django.service"
+        dest: /etc/systemd/system/
+        mode: '0777'
+
+    - name: update path in django runfile
+      replace:
+        path: "/bin/run_django.sh"
+        regexp: 'HOME'
+        replace: '{{project_path}}/..'
+
+    - name: Copy Websocket run script
+      copy:
+        src: "{{project_path}}/backend/postgresql2websock/postgresql2websocket.py"
+        dest: /bin/
+        mode: '0644'
+
+    - name: Copy Websocket service file
+      copy:
+        src: "{{project_path}}/config_files/websock.service"
+        dest: /etc/systemd/system/
+        mode: '0644'
+    
+    - name: Get python version
+      shell: ls /usr/bin/python3*|grep -v config|tr ' ' '\n'|sort|uniq|grep -v m$|grep -v json|tail -n 1|rev |cut -d '/' -f1 |rev|tr -d ' '
+      register: python_installed
+
+    - name: update python path in websock.service
+      replace:
+        path: "/etc/systemd/system/websock.service"
+        regexp: '/usr/bin/python3'
+        replace: "{{project_path}}/../venv/bin/{{python_installed.stdout}}"
+
+    - name: update db.conf path in postgresql2websocket.py
+      replace:
+        path: "/bin/postgresql2websocket.py"
+        regexp: '../../config_files/db.conf'
+        replace: "{{project_path}}/config_files/db.conf"
+
+    - name: Build project
+      command: ng build --prod 
+      args:
+        chdir: "{{project_path}}/frontend"

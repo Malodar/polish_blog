@@ -1,0 +1,24 @@
+---
+- name: nmcli
+  hosts: 127.0.0.1
+  become: true
+  tasks:
+  
+  - name: ens18
+    community.general.nmcli:
+        type: ethernet
+        conn_name: ens18
+        ip4: 172.16.0.102/16
+        gw4: 172.16.0.1
+        state: present
+        autoconnect: yes
+  - name: dns4
+    community.general.nmcli:
+      conn_name: ens18  
+      type: ethernet    
+      dns4:
+        -    8.8.8.8
+      state: present
+
+  - name: reload network interface
+    service: name=NetworkManager state=restarted
